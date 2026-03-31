@@ -75,18 +75,27 @@ export default function AdminDashboard() {
 
     const unsubRequests = onSnapshot(query(collection(db, 'leaveRequests'), orderBy('createdAt', 'desc')), (snap) => {
       setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })) as LeaveRequest[]);
+    }, (error) => {
+      console.error("Admin Requests Error:", error);
     });
 
     const unsubUsers = onSnapshot(query(collection(db, 'users'), orderBy('createdAt', 'desc')), (snap) => {
       setEmployees(snap.docs.map(d => d.data() as UserProfile));
+    }, (error) => {
+      console.error("Admin Users Error:", error);
     });
 
     const unsubPayroll = onSnapshot(query(collection(db, 'payroll'), orderBy('createdAt', 'desc')), (snap) => {
       setPayroll(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PayrollRecord[]);
+    }, (error) => {
+      console.error("Admin Payroll Error:", error);
     });
 
     const unsubPerformance = onSnapshot(query(collection(db, 'performance'), orderBy('createdAt', 'desc')), (snap) => {
       setPerformance(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PerformanceRecord[]);
+      setLoading(false);
+    }, (error) => {
+      console.error("Admin Performance Error:", error);
       setLoading(false);
     });
 

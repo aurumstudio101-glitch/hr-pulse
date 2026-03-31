@@ -8,6 +8,7 @@ import { cn, formatDate } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { useAuth } from '../hooks/useAuth';
+import { handleFirestoreError, OperationType } from '../firebase';
 
 export default function Tasks() {
   const { user, uid, loading: authLoading } = useAuth();
@@ -40,6 +41,9 @@ export default function Tasks() {
     const unsubscribe = onSnapshot(q, (snap) => {
       setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Task[]);
       setLoading(false);
+    }, (error) => {
+      console.error("Error fetching tasks:", error);
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -59,7 +63,7 @@ export default function Tasks() {
       setNewTaskTitle('');
       toast.success('Task added successfully');
     } catch (e: any) {
-      toast.error(e.message);
+      handleFirestoreError(e, OperationType.WRITE, 'tasks');
     }
   };
 
@@ -67,7 +71,7 @@ export default function Tasks() {
     try {
       await updateDoc(doc(db, 'tasks', id), { completed: !completed });
     } catch (e: any) {
-      toast.error(e.message);
+      handleFirestoreError(e, OperationType.WRITE, `tasks/${id}`);
     }
   };
 
@@ -76,7 +80,7 @@ export default function Tasks() {
       await deleteDoc(doc(db, 'tasks', id));
       toast.success('Task deleted');
     } catch (e: any) {
-      toast.error(e.message);
+      handleFirestoreError(e, OperationType.DELETE, `tasks/${id}`);
     }
   };
 

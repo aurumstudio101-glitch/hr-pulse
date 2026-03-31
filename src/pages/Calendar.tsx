@@ -37,12 +37,17 @@ export default function CalendarPage() {
     );
     const unsubLeaves = onSnapshot(qLeaves, (snap) => {
       setLeaves(snap.docs.map(d => ({ id: d.id, ...d.data() })) as LeaveRequest[]);
+    }, (error) => {
+      console.error("Error fetching leaves for calendar:", error);
     });
 
     // Fetch holidays
     const qHolidays = query(collection(db, 'holidays'), orderBy('date', 'asc'));
     const unsubHolidays = onSnapshot(qHolidays, (snap) => {
       setHolidays(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Holiday[]);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching holidays:", error);
       setLoading(false);
     });
 

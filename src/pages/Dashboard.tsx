@@ -19,6 +19,7 @@ import {
 } from 'recharts';
 
 import { useAuth } from '../hooks/useAuth';
+import { handleFirestoreError, OperationType } from '../firebase';
 
 export default function Dashboard() {
   const { user, uid, loading: authLoading } = useAuth();
@@ -98,6 +99,9 @@ export default function Dashboard() {
     );
     const unsubLeaves = onSnapshot(qLeaves, (snap) => {
       setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })) as LeaveRequest[]);
+    }, (error) => {
+      console.error("Leave Requests Error:", error);
+      if (isDemo) setLoading(false);
     });
 
     // Attendance
@@ -109,6 +113,8 @@ export default function Dashboard() {
     );
     const unsubAtt = onSnapshot(qAtt, (snap) => {
       setAttendance(snap.docs.map(d => ({ id: d.id, ...d.data() })) as AttendanceRecord[]);
+    }, (error) => {
+      console.error("Attendance Error:", error);
     });
 
     // Tasks
@@ -120,6 +126,9 @@ export default function Dashboard() {
     );
     const unsubTasks = onSnapshot(qTasks, (snap) => {
       setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Task[]);
+      setLoading(false);
+    }, (error) => {
+      console.error("Tasks Error:", error);
       setLoading(false);
     });
 
@@ -146,7 +155,7 @@ export default function Dashboard() {
       });
       toast.success('Checked in successfully!');
     } catch (e: any) {
-      toast.error(e.message);
+      handleFirestoreError(e, OperationType.WRITE, 'attendance');
     }
   };
 
@@ -162,7 +171,7 @@ export default function Dashboard() {
       });
       toast.success('Checked out successfully!');
     } catch (e: any) {
-      toast.error(e.message);
+      handleFirestoreError(e, OperationType.WRITE, `attendance/${todayRecord.id}`);
     }
   };
 
@@ -170,7 +179,7 @@ export default function Dashboard() {
     try {
       await updateDoc(doc(db, 'tasks', id), { completed: !completed });
     } catch (e: any) {
-      toast.error(e.message);
+      handleFirestoreError(e, OperationType.WRITE, `tasks/${id}`);
     }
   };
 
@@ -190,7 +199,7 @@ export default function Dashboard() {
       form.reset();
       toast.success('Task added');
     } catch (e: any) {
-      toast.error(e.message);
+      handleFirestoreError(e, OperationType.WRITE, 'tasks');
     }
   };
 
@@ -231,7 +240,7 @@ export default function Dashboard() {
       setStartDate('');
       setEndDate('');
     } catch (error: any) {
-      toast.error(error.message);
+      handleFirestoreError(error, OperationType.WRITE, 'leaveRequests');
     } finally {
       setSubmitting(false);
     }
@@ -287,7 +296,7 @@ export default function Dashboard() {
               <p className="text-orange-50 opacity-90 font-medium max-w-md mb-8">
                 {user?.role === 'employee' 
                   ? `You have ${user.leaveQuotas.annual - user.usedLeaves.annual} annual leave days remaining. Your current performance score is ${user.performanceScore}%.`
-                  : `Administrative Portal: You have full control over ${user?.role === 'owner' ? 'HR and Employee' : 'Employee'} management.`}
+                  : `Administrative Portal: You have full control over ${user?.role === 'owner' || user?.role === 'super' ? 'HR and Employee' : 'Employee'} management.`}
               </p>
 
               <div className="flex flex-wrap gap-4">
@@ -324,13 +333,13 @@ export default function Dashboard() {
                     </button>
                   </>
                 )}
-                {(user?.role === 'hr' || user?.role === 'owner') && (
+                {(user?.role === 'hr' || user?.role === 'owner' || user?.role === 'super') && (
                   <div className="flex gap-4">
                     <div className="bg-white/20 backdrop-blur-md px-6 py-3 rounded-2xl font-bold flex items-center gap-2">
                       <ShieldCheck size={20} />
                       {user.role.toUpperCase()} Access
                     </div>
-                    {user.role === 'hr' && (
+                    {(user.role === 'hr' || user.role === 'super') && (
                       <button 
                         onClick={() => setIsModalOpen(true)}
                         className="bg-orange-400/30 backdrop-blur-md text-white border border-white/30 px-6 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-orange-400/40 transition-all"

@@ -44,6 +44,9 @@ export default function Performance() {
     const unsubscribe = onSnapshot(q, (snap) => {
       setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PerformanceRecord[]);
       setLoading(false);
+    }, (error) => {
+      console.error("Error fetching performance records:", error);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [uid]);

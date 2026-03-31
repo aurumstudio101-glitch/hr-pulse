@@ -50,6 +50,10 @@ export default function PayrollManagement() {
     const q = query(collection(db, 'users'), where('role', '==', 'employee'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setEmployees(snap.docs.map(d => d.data() as UserProfile));
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching employees:", error);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [user, authLoading, navigate]);
@@ -67,6 +71,9 @@ export default function PayrollManagement() {
     const q = query(collection(db, 'payroll'), orderBy('year', 'desc'), orderBy('month', 'desc'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setPayrollHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PayrollRecord[]);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching payroll history:", error);
       setLoading(false);
     });
     return () => unsubscribe();

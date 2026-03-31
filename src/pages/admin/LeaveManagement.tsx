@@ -65,6 +65,9 @@ export default function LeaveManagement() {
 
       setRequests(filteredByRole);
       setLoading(false);
+    }, (error) => {
+      console.error("Error fetching leave requests:", error);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [currentUser, authLoading, navigate]);

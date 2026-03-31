@@ -52,6 +52,10 @@ export default function PerformanceManagement() {
     const q = query(collection(db, 'users'), where('role', '!=', 'owner'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setEmployees(snap.docs.map(d => d.data() as UserProfile));
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching employees:", error);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [currentUser, authLoading, navigate]);
@@ -69,6 +73,9 @@ export default function PerformanceManagement() {
     const q = query(collection(db, 'performance'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setPerformanceRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PerformanceRecord[]);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching performance records:", error);
       setLoading(false);
     });
     return () => unsubscribe();

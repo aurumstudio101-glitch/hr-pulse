@@ -21,6 +21,9 @@ export function useAuth() {
             setUser(docSnap.data() as UserProfile);
           }
           setLoading(false);
+        }, (error) => {
+          console.error("Error fetching user profile:", error);
+          setLoading(false);
         });
         return () => unsubProfile();
       } else if (demoUser) {

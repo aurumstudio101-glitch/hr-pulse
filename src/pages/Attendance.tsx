@@ -8,6 +8,7 @@ import { cn, formatDate } from '../lib/utils';
 import { motion } from 'motion/react';
 
 import { useAuth } from '../hooks/useAuth';
+import { handleFirestoreError, OperationType } from '../firebase';
 
 export default function Attendance() {
   const { user, uid, loading: authLoading } = useAuth();
@@ -45,6 +46,9 @@ export default function Attendance() {
       const todayRec = allRecords.find(r => r.date === today);
       setTodayRecord(todayRec || null);
       setLoading(false);
+    }, (error) => {
+      console.error("Error fetching attendance records:", error);
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -61,7 +65,7 @@ export default function Attendance() {
       });
       toast.success('Checked in successfully!');
     } catch (e: any) {
-      toast.error(e.message);
+      handleFirestoreError(e, OperationType.WRITE, 'attendance');
     }
   };
 
@@ -73,7 +77,7 @@ export default function Attendance() {
       });
       toast.success('Checked out successfully!');
     } catch (e: any) {
-      toast.error(e.message);
+      handleFirestoreError(e, OperationType.WRITE, `attendance/${todayRecord.id}`);
     }
   };
 

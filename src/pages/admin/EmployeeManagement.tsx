@@ -61,6 +61,9 @@ export default function EmployeeManagement() {
     const unsubscribe = onSnapshot(q, (snap) => {
       setEmployees(snap.docs.map(d => d.data() as UserProfile));
       setLoading(false);
+    }, (error) => {
+      console.error("Error fetching employees:", error);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [user, authLoading, navigate]);
