@@ -18,28 +18,35 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      toast.error('Please enter a username');
+      setLoading(false);
+      return;
+    }
+
     // Map username to email convention
-    const email = username.includes('@') ? username : `${username}@hrpulse.com`;
+    const email = trimmedUsername.includes('@') ? trimmedUsername : `${trimmedUsername}@hrpulse.com`;
 
     try {
       // Dummy Login Bypass for Demo
-      const isDemo = (username === 'owner' || username === 'hr' || username === 'employee' || username === 'super') && 
-                    (username === 'super' ? password === '1234' : password === '4321');
+      const isDemo = (trimmedUsername === 'owner' || trimmedUsername === 'hr' || trimmedUsername === 'employee' || trimmedUsername === 'super') && 
+                    (trimmedUsername === 'super' ? password === '1234' : password === '4321');
       
       if (isDemo) {
-        const mockUid = `demo_${username}`;
+        const mockUid = `demo_${trimmedUsername}`;
         const defaultQuotas = { annual: 14, sick: 7, casual: 7, short: 4 };
         const defaultUsed = { annual: 0, sick: 0, casual: 0, short: 0 };
-        let role: UserRole = username as any;
-        let name = username === 'owner' ? 'Company Owner' : 
-                   username === 'hr' ? 'HR Manager' : 
-                   username === 'super' ? 'Super Admin' : 'Demo Employee';
+        let role: UserRole = trimmedUsername as any;
+        let name = trimmedUsername === 'owner' ? 'Company Owner' : 
+                   trimmedUsername === 'hr' ? 'HR Manager' : 
+                   trimmedUsername === 'super' ? 'Super Admin' : 'Demo Employee';
         
         const userData = {
           uid: mockUid,
-          username: username,
+          username: trimmedUsername,
           name: name,
-          email: `${username}@demo.com`,
+          email: `${trimmedUsername}@demo.com`,
           role: role,
           salary: role === 'owner' ? 0 : 5000,
           leaveQuotas: defaultQuotas,
@@ -52,6 +59,14 @@ export default function Login() {
         localStorage.setItem('hr_pulse_demo_user', JSON.stringify(userData));
         toast.success(`Demo Mode: Welcome, ${userData.name}!`);
         navigate('/dashboard');
+        return;
+      }
+
+      // Basic email validation before sending to Firebase
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        toast.error('Invalid username or email format');
+        setLoading(false);
         return;
       }
 

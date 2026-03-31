@@ -70,7 +70,7 @@ export default function AdminDashboard() {
       ] as PerformanceRecord[]);
       
       setLoading(false);
-      // We still set up listeners but they might fail silently or be overridden by mock data
+      return; // Stop here for demo users
     }
 
     const unsubRequests = onSnapshot(query(collection(db, 'leaveRequests'), orderBy('createdAt', 'desc')), (snap) => {

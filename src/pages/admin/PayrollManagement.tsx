@@ -39,6 +39,14 @@ export default function PayrollManagement() {
       return;
     }
 
+    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
+    if (isDemo) {
+      setEmployees([
+        { uid: 'employee-uid', username: 'employee', name: 'Employee User', email: 'employee@hrpulse.com', role: 'employee', salary: 5000, leaveQuotas: { annual: 20, sick: 10, casual: 5, short: 2 }, usedLeaves: { annual: 0, sick: 0, casual: 0, short: 0 }, performanceScore: 100, createdAt: new Date() as any }
+      ]);
+      return;
+    }
+
     const q = query(collection(db, 'users'), where('role', '==', 'employee'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setEmployees(snap.docs.map(d => d.data() as UserProfile));
@@ -47,6 +55,15 @@ export default function PayrollManagement() {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
+    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
+    if (isDemo) {
+      setPayrollHistory([
+        { id: 'pay-1', userId: 'employee-uid', userName: 'Employee User', branch: 'Main', startDate: new Date() as any, month: new Date().getMonth() + 1, year: new Date().getFullYear(), salaryA: 3000, salaryB: 2000, epf: 400, advances: 0, coverDedication: 0, intensive: 500, travelling: 0, netSalary: 5100, status: 'Paid', createdAt: new Date() as any }
+      ]);
+      setLoading(false);
+      return;
+    }
+
     const q = query(collection(db, 'payroll'), orderBy('year', 'desc'), orderBy('month', 'desc'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setPayrollHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PayrollRecord[]);

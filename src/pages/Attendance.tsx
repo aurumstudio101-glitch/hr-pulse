@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { Clock, ArrowUpRight, ArrowDownRight, Calendar, UserCheck, Timer } from 'lucide-react';
 import { AttendanceRecord } from '../types';
@@ -17,6 +17,19 @@ export default function Attendance() {
 
   useEffect(() => {
     if (!uid) return;
+
+    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
+    if (isDemo) {
+      const today = new Date().toISOString().split('T')[0];
+      const mockRecords: AttendanceRecord[] = [
+        { id: 'att-1', userId: uid, date: today, checkIn: { toDate: () => new Date(new Date().setHours(9, 0)) } as any, checkOut: { toDate: () => new Date(new Date().setHours(17, 0)) } as any, isLate: false, isEarlyOut: false },
+        { id: 'att-2', userId: uid, date: '2024-03-20', checkIn: { toDate: () => new Date(new Date().setHours(8, 45)) } as any, checkOut: { toDate: () => new Date(new Date().setHours(17, 15)) } as any, isLate: false, isEarlyOut: false }
+      ];
+      setRecords(mockRecords);
+      setTodayRecord(mockRecords[0]);
+      setLoading(false);
+      return;
+    }
 
     const today = new Date().toISOString().split('T')[0];
     const q = query(

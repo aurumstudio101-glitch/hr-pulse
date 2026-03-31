@@ -87,7 +87,7 @@ export default function Dashboard() {
       ] as Task[]);
       
       setLoading(false);
-      // We still set up listeners but they might fail silently or be overridden by mock data
+      return; // Stop here for demo users
     }
 
     // Leave Requests

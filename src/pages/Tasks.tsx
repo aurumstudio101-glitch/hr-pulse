@@ -20,6 +20,17 @@ export default function Tasks() {
   useEffect(() => {
     if (!uid) return;
 
+    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
+    if (isDemo) {
+      setTasks([
+        { id: 'task-1', userId: uid, title: 'Complete quarterly report', completed: false, createdAt: { toDate: () => new Date() } as any },
+        { id: 'task-2', userId: uid, title: 'Review leave requests', completed: true, createdAt: { toDate: () => new Date() } as any },
+        { id: 'task-3', userId: uid, title: 'Team meeting at 2 PM', completed: false, createdAt: { toDate: () => new Date() } as any }
+      ]);
+      setLoading(false);
+      return;
+    }
+
     const q = query(
       collection(db, 'tasks'),
       where('userId', '==', uid),

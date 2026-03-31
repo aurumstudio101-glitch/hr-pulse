@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../../firebase';
 import { 
   collection, query, onSnapshot, updateDoc, doc, 
-  orderBy, where, getDoc, runTransaction 
+  orderBy, where, getDoc, runTransaction, Timestamp 
 } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { 
@@ -29,6 +29,26 @@ export default function LeaveManagement() {
     if (authLoading) return;
     if (!currentUser || (currentUser.role !== 'owner' && currentUser.role !== 'hr' && currentUser.role !== 'super')) {
       navigate('/dashboard');
+      return;
+    }
+
+    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
+    if (isDemo) {
+      setRequests([
+        {
+          id: 'demo-1',
+          userId: 'employee-uid',
+          userName: 'Employee User',
+          userRole: 'employee',
+          leaveType: 'Annual',
+          reason: 'Vacation',
+          startDate: Timestamp.fromDate(new Date(Date.now() - 86400000 * 5)),
+          endDate: Timestamp.fromDate(new Date(Date.now() - 86400000 * 2)),
+          status: 'Pending',
+          createdAt: Timestamp.now()
+        }
+      ] as LeaveRequest[]);
+      setLoading(false);
       return;
     }
 

@@ -45,6 +45,18 @@ export default function EmployeeManagement() {
       return;
     }
 
+    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
+    if (isDemo) {
+      setEmployees([
+        { uid: 'super-uid', username: 'super', name: 'Super Admin', email: 'super@hrpulse.com', role: 'super', salary: 5000, leaveQuotas: { annual: 20, sick: 10, casual: 5, short: 2 }, usedLeaves: { annual: 0, sick: 0, casual: 0, short: 0 }, performanceScore: 100, createdAt: new Date() as any },
+        { uid: 'owner-uid', username: 'owner', name: 'Owner User', email: 'owner@hrpulse.com', role: 'owner', salary: 5000, leaveQuotas: { annual: 20, sick: 10, casual: 5, short: 2 }, usedLeaves: { annual: 0, sick: 0, casual: 0, short: 0 }, performanceScore: 100, createdAt: new Date() as any },
+        { uid: 'hr-uid', username: 'hr', name: 'HR User', email: 'hr@hrpulse.com', role: 'hr', salary: 5000, leaveQuotas: { annual: 20, sick: 10, casual: 5, short: 2 }, usedLeaves: { annual: 0, sick: 0, casual: 0, short: 0 }, performanceScore: 100, createdAt: new Date() as any },
+        { uid: 'employee-uid', username: 'employee', name: 'Employee User', email: 'employee@hrpulse.com', role: 'employee', salary: 5000, leaveQuotas: { annual: 20, sick: 10, casual: 5, short: 2 }, usedLeaves: { annual: 0, sick: 0, casual: 0, short: 0 }, performanceScore: 100, createdAt: new Date() as any }
+      ]);
+      setLoading(false);
+      return;
+    }
+
     const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setEmployees(snap.docs.map(d => d.data() as UserProfile));
@@ -56,13 +68,22 @@ export default function EmployeeManagement() {
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
+    
+    if (!trimmedUsername) {
+      toast.error('Username is required');
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      const userEmail = email || `${username}@hrpulse.com`;
+      const userEmail = trimmedEmail || `${trimmedUsername}@hrpulse.com`;
       const mockUid = `user_${Date.now()}`;
       
       const newUser: UserProfile = {
         uid: mockUid,
-        username,
+        username: trimmedUsername,
         name,
         email: userEmail,
         department,

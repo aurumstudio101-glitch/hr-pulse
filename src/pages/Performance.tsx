@@ -27,6 +27,15 @@ export default function Performance() {
   useEffect(() => {
     if (!uid) return;
 
+    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
+    if (isDemo) {
+      setRecords([
+        { id: 'perf-1', userId: uid, userName: 'Demo User', evaluatorId: 'hr-uid', evaluatorName: 'HR Manager', score: 85, rating: 4, feedback: 'Good progress this quarter.', hrFeedback: 'Consistently meeting expectations.', goals: ['Master React', 'Improve documentation'], status: 'Completed', createdAt: { toDate: () => new Date() } as any }
+      ]);
+      setLoading(false);
+      return;
+    }
+
     const q = query(
       collection(db, 'performance'), 
       where('userId', '==', uid),

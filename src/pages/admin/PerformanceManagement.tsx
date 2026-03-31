@@ -41,6 +41,14 @@ export default function PerformanceManagement() {
       return;
     }
 
+    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
+    if (isDemo) {
+      setEmployees([
+        { uid: 'employee-uid', username: 'employee', name: 'Employee User', email: 'employee@hrpulse.com', role: 'employee', salary: 5000, leaveQuotas: { annual: 20, sick: 10, casual: 5, short: 2 }, usedLeaves: { annual: 0, sick: 0, casual: 0, short: 0 }, performanceScore: 100, createdAt: new Date() as any }
+      ]);
+      return;
+    }
+
     const q = query(collection(db, 'users'), where('role', '!=', 'owner'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setEmployees(snap.docs.map(d => d.data() as UserProfile));
@@ -49,6 +57,15 @@ export default function PerformanceManagement() {
   }, [currentUser, authLoading, navigate]);
 
   useEffect(() => {
+    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
+    if (isDemo) {
+      setPerformanceRecords([
+        { id: 'perf-1', userId: 'employee-uid', userName: 'Employee User', evaluatorId: 'hr-uid', evaluatorName: 'HR Manager', score: 90, feedback: 'Excellent performance this quarter.', goals: ['Learn React Native', 'Improve communication'], createdAt: new Date() as any }
+      ]);
+      setLoading(false);
+      return;
+    }
+
     const q = query(collection(db, 'performance'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snap) => {
       setPerformanceRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })) as PerformanceRecord[]);
