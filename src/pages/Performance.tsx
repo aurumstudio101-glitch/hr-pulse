@@ -4,13 +4,11 @@ import {
   Star, AlertCircle, CheckCircle2, BarChart3
 } from 'lucide-react';
 import { PerformanceRecord, UserProfile, AttendanceRecord, Task } from '../types';
-import * as firestoreService from '../services/firestoreService';
-import { db } from '../firebase';
-import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
-import { mockService } from '../mockService'; // Keeping for reference/fallback
+import * as supabaseService from '../services/supabaseService';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { toast } from 'sonner';
 
 export default function Performance() {
   const { user } = useAuth();
@@ -22,11 +20,15 @@ export default function Performance() {
 
   useEffect(() => {
     const loadEmps = async () => {
-      const emps = await firestoreService.getEmployees();
-      setEmployees(emps);
-      if (!selectedEmp && emps.length > 0) {
-        const initial = user?.role === 'employee' ? emps.find(e => e.uid === user.uid) || emps[0] : emps[0];
-        setSelectedEmp(initial);
+      try {
+        const emps = await supabaseService.getEmployees();
+        setEmployees(emps || []);
+        if (!selectedEmp && emps && emps.length > 0) {
+          const initial = user?.role === 'employee' ? emps.find(e => e.uid === user.uid) || emps[0] : emps[0];
+          setSelectedEmp(initial);
+        }
+      } catch (err) {
+        console.error('Error loading employees:', err);
       }
     };
     loadEmps();
@@ -35,26 +37,24 @@ export default function Performance() {
   useEffect(() => {
     if (!selectedEmp) return;
 
-    setLoading(true);
-    const unsubAttendance = onSnapshot(
-      query(collection(db, 'attendance'), where('userId', '==', selectedEmp.uid), orderBy('date', 'desc')),
-      (snap) => {
-        setAttendance(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord)));
-      }
-    );
-
-    const unsubTasks = onSnapshot(
-      query(collection(db, 'tasks'), where('userId', '==', selectedEmp.uid), orderBy('createdAt', 'desc')),
-      (snap) => {
-        setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [attData, taskData] = await Promise.all([
+          supabaseService.getAttendance(selectedEmp.uid),
+          supabaseService.getTasks(selectedEmp.uid)
+        ]);
+        setAttendance(attData || []);
+        setTasks(taskData || []);
+      } catch (err) {
+        console.error('Error loading performance data:', err);
+        toast.error('Failed to sync performance metrics');
+      } finally {
         setLoading(false);
       }
-    );
+    };
 
-    return () => {
-      unsubAttendance();
-      unsubTasks();
-    }
+    loadData();
   }, [selectedEmp]);
 
   // Dynamic Metrics Calculation

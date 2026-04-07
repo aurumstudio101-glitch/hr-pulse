@@ -5,8 +5,7 @@ import {
   CheckCircle2, Clock, FileText, Plus
 } from 'lucide-react';
 import { PayrollRecord, UserProfile } from '../types';
-import * as firestoreService from '../services/firestoreService';
-import { mockService } from '../mockService'; // Keeping for reference/fallback if needed
+import * as supabaseService from '../services/supabaseService';
 import { useAuth } from '../hooks/useAuth';
 import { cn, formatDate } from '../lib/utils';
 import { motion } from 'motion/react';
@@ -187,23 +186,26 @@ export default function Payroll() {
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [user?.uid, user?.role]);
 
   const loadData = async () => {
     if (!user) return;
-    if (user.role === 'hr' || user.role === 'owner' || user.role === 'super') {
-      const data = await firestoreService.getPayroll();
-      setPayrolls(data);
-    } else {
-      const data = await firestoreService.getPayroll(user.uid);
-      setPayrolls(data);
+    setLoading(true);
+    try {
+      const isManagement = user.role === 'hr' || user.role === 'owner' || user.role === 'super';
+      const data = await supabaseService.getPayroll(isManagement ? undefined : user.uid);
+      setPayrolls(data || []);
+    } catch (err) {
+      console.error('Error loading payrolls:', err);
+      toast.error('Failed to load payroll data');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const filteredPayrolls = payrolls.filter(p => {
-    const matchesSearch = p.userName.toLowerCase().includes(search.toLowerCase());
-    const matchesMonth = p.month === Number(filterMonth);
+    const matchesSearch = (p.userName || '').toLowerCase().includes(search.toLowerCase());
+    const matchesMonth = p.month === Number(filterMonth) + 1; // months are 1-12 in DB
     return matchesSearch && matchesMonth;
   }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -255,7 +257,7 @@ export default function Payroll() {
           {(user?.role === 'hr' || user?.role === 'super') && (
             <button 
               onClick={async () => {
-                await firestoreService.generatePayroll(new Date().getMonth() + 1, new Date().getFullYear());
+                await supabaseService.generatePayroll(new Date().getMonth() + 1, new Date().getFullYear());
                 toast.success('Current month payroll generated');
                 loadData();
               }}

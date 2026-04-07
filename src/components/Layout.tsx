@@ -1,7 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { auth, db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { 
   LogOut, User, LayoutDashboard, Calendar, Users, Menu, X, 
@@ -15,7 +12,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user, uid, loading } = useAuth();
+  const { user, uid, loading, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const navigate = useNavigate();
@@ -40,7 +37,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     localStorage.removeItem('hr_pulse_demo_user');
-    await signOut(auth);
+    await logout();
     navigate('/login');
   };
 

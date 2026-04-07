@@ -12,12 +12,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie 
 } from 'recharts';
-import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
 
 import { useAuth } from '../hooks/useAuth';
-import * as firestoreService from '../services/firestoreService';
-import { mockService } from '../mockService'; // Keeping for reference/fallback
+import * as supabaseService from '../services/supabaseService';
 import { toast } from 'sonner';
 
 export default function Dashboard() {
@@ -52,57 +49,35 @@ export default function Dashboard() {
     return { text: 'Good Evening', icon: '🌙' };
   };
 
-  useEffect(() => {
+  const loadData = async () => {
     if (!uid || !user) return;
-
     setLoading(true);
-    const isManagement = user.role === 'hr' || user.role === 'owner' || user.role === 'super';
+    try {
+      const isManagement = user.role === 'hr' || user.role === 'owner' || user.role === 'super';
+      
+      const [empData, leaveData, attendanceData, taskData] = await Promise.all([
+        supabaseService.getEmployees(),
+        supabaseService.getLeaves(isManagement ? undefined : uid),
+        supabaseService.getAttendance(isManagement ? undefined : uid),
+        supabaseService.getTasks(uid)
+      ]);
 
-    // 1. Real-time Employees (needed for names & management dashboard)
-    const empsUnsub = onSnapshot(collection(db, 'users'), (snap) => {
-      setEmployees(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
-    });
-
-    // 2. Real-time Leaves
-    const leavesQuery = isManagement 
-      ? query(collection(db, 'leaveRequests'), orderBy('createdAt', 'desc'))
-      : query(collection(db, 'leaveRequests'), where('userId', '==', uid), orderBy('createdAt', 'desc'));
-
-    const leavesUnsub = onSnapshot(leavesQuery, (snap) => {
-      setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as LeaveRequest)));
+      setEmployees(empData);
+      setRequests(leaveData);
+      setAttendance(attendanceData);
+      setTasks(taskData);
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+      toast.error('Failed to sync data');
+    } finally {
       setLoading(false);
-    }, (err) => {
-      console.error('Leaves listener error:', err);
-      setLoading(false);
-    });
+    }
+  };
 
-    // 3. Real-time Attendance
-    const attendanceQuery = isManagement 
-      ? query(collection(db, 'attendance'), orderBy('date', 'desc'))
-      : query(collection(db, 'attendance'), where('userId', '==', uid), orderBy('date', 'desc'));
-
-    const attendanceUnsub = onSnapshot(attendanceQuery, (snap) => {
-      setAttendance(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord)));
-    }, (err) => {
-      console.error('Attendance listener error:', err);
-    });
-
-    // 4. Real-time Tasks (Tasks always personal for now)
-    const tasksUnsub = onSnapshot(
-      query(collection(db, 'tasks'), where('userId', '==', uid), orderBy('createdAt', 'desc')),
-      (snap) => {
-        setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
-      }, (err) => {
-        console.error('Tasks listener error:', err);
-      }
-    );
-
-    return () => {
-      empsUnsub();
-      leavesUnsub();
-      attendanceUnsub();
-      tasksUnsub();
-    };
+  useEffect(() => {
+    loadData();
+    // In a real app with Supabase, we would set up real-time subscriptions here
+    // For now, we'll use a standard fetch to get the migration working.
   }, [uid, user?.role]);
 
   // Live Performance Calculation logic (mirrors Performance page)
@@ -131,18 +106,14 @@ export default function Dashboard() {
     }).format(currentTime);
   };
 
-  const loadData = async () => {
-    // Handled by onSnapshot
-  };
-
-  const todayStr = currentTime.toISOString().split('T')[0];
+  const todayStr = getLocalToday();
   const todayRecord = attendance.find(r => r.date === todayStr);
   const isCheckedIn = !!todayRecord;
   const isCheckedOut = !!todayRecord?.checkOut;
 
   const handleCheckIn = async () => {
     if (!uid) return;
-    const success = await firestoreService.checkIn(uid);
+    const success = await supabaseService.checkIn(uid);
     if (success) {
       toast.success('Checked in successfully!');
       loadData();
@@ -153,7 +124,7 @@ export default function Dashboard() {
 
   const handleCheckOut = async () => {
     if (!uid) return;
-    const success = await firestoreService.checkOut(uid);
+    const success = await supabaseService.checkOut(uid);
     if (success) {
       toast.success('Checked out successfully!');
       loadData();
@@ -163,12 +134,12 @@ export default function Dashboard() {
   };
 
   const toggleTask = async (id: string) => {
-    await firestoreService.toggleTask(id);
+    await supabaseService.toggleTask(id);
     loadData();
   };
 
   const deleteTask = async (id: string) => {
-    await firestoreService.deleteTask(id);
+    await supabaseService.deleteTask(id);
     loadData();
   };
 
@@ -178,7 +149,7 @@ export default function Dashboard() {
     const title = (form.elements.namedItem('taskTitle') as HTMLInputElement).value;
     if (!title || !uid) return;
 
-    await firestoreService.saveTask({
+    await supabaseService.saveTask({
       userId: uid,
       title,
       completed: false,
@@ -221,7 +192,7 @@ export default function Dashboard() {
         imageUrl: leaveImage || null
       };
       
-      await firestoreService.saveLeave(leaveData);
+      await supabaseService.saveLeave(leaveData);
       
       toast.success('Leave request submitted successfully!');
       setIsModalOpen(false);

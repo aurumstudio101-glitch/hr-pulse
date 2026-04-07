@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { cn, formatDate } from '../lib/utils';
-import * as firestoreService from '../services/firestoreService';
+import * as supabaseService from '../services/supabaseService';
 import { toast } from 'sonner';
 
 export default function Profile() {
@@ -23,6 +23,7 @@ export default function Profile() {
     department: '',
     status: '',
   });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Initialize form data when entering edit mode
   useEffect(() => {
@@ -49,6 +50,7 @@ export default function Profile() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData({ ...formData, photoUrl: reader.result as string });
@@ -60,21 +62,31 @@ export default function Profile() {
   const handleSave = async () => {
     const fullName = `${formData.firstName} ${formData.lastName}`.trim();
     
-    // Sanitize data: Ensure all mandatory fields are present and nothing is undefined
-    const updatedUser = {
-      ...user,
-      name: fullName || user.name,
-      email: user.email, // Email remains immutable for security
-      phone: formData.phone || user.phone || '',
-      photoUrl: formData.photoUrl || user.photoUrl || '',
-      department: formData.department || user.department || 'Operations',
-      status: (formData.status as any) || user.status || 'Available',
-    };
-    
     try {
-      await firestoreService.saveEmployee(updatedUser);
+      let finalPhotoUrl = formData.photoUrl || user.photoUrl || '';
+
+      // 1. If a new file was selected, upload it to Supabase Storage first
+      if (selectedFile && user.uid) {
+        toast.loading('Uploading photo...');
+        finalPhotoUrl = await supabaseService.uploadAvatar(user.uid, selectedFile);
+      }
+
+      // 2. Prepare the updated user profile
+      const updatedUser = {
+        ...user,
+        name: fullName || user.name,
+        email: user.email,
+        phone: formData.phone || user.phone || '',
+        photoUrl: finalPhotoUrl,
+        department: formData.department || user.department || 'Operations',
+        status: (formData.status as any) || user.status || 'Available',
+      };
+      
+      await supabaseService.saveEmployee(updatedUser);
       updateUser(updatedUser);
       setIsEditing(false);
+      setSelectedFile(null);
+      toast.dismiss();
       toast.success('Profile updated successfully!');
     } catch (err) {
       console.error('Profile Update Error:', err);

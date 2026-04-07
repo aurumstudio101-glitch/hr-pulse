@@ -1,8 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { UserProfile } from '../types';
-import { auth, db } from '../firebase';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import { onSnapshot, doc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -20,45 +18,88 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (firebaseUser) => {
-      console.log('Auth state changed:', firebaseUser?.email);
-      
-      if (firebaseUser) {
-        setUid(firebaseUser.uid);
-        
-        // Use a real-time listener for the profile too!
-        // This ensures the role/salary etc update INSTANTLY if changed in the backend
-        const profileUnsub = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
-          if (docSnap.exists()) {
-            setUser({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
-          } else {
-            setUser(null);
-          }
-          setLoading(false);
-        }, (err) => {
-          console.error('Profile listener error:', err);
-          setLoading(false);
-          setUser(null);
-        });
+  async function fetchProfile(userId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-        return () => profileUnsub();
-      } else {
+      if (error) {
+        console.error('Error fetching profile:', error);
         setUser(null);
-        setUid(null);
+      } else if (data) {
+        // Map snake_case from Postgres to camelCase for the app
+        const profile: UserProfile = {
+          uid: data.id,
+          name: data.name,
+          email: data.email,
+          username: data.username,
+          role: data.role,
+          branch: data.branch,
+          department: data.department,
+          phone: data.phone,
+          photoUrl: data.photo_url,
+          status: data.status,
+          joinDate: data.join_date,
+          salaryA: Number(data.salary_a),
+          salaryB: Number(data.salary_b),
+          epf: Number(data.epf),
+          advances: Number(data.advances),
+          cover: Number(data.cover),
+          intensive: Number(data.intensive),
+          travelling: Number(data.travelling),
+          net: Number(data.net),
+          performanceScore: Number(data.performance_score),
+          leaveQuotas: data.leave_quotas,
+          usedLeaves: data.used_leaves,
+        };
+        setUser(profile);
+      }
+    } catch (err) {
+      console.error('Profile fetch unexpected error:', err);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    // 1. Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUid(session.user.id);
+        fetchProfile(session.user.id);
+      } else {
         setLoading(false);
       }
     });
-    return () => unsub();
+
+    // 2. Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUid(session.user.id);
+        fetchProfile(session.user.id);
+      } else {
+        setUid(null);
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
-    // onAuthStateChanged will handle setting user state
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
   };
 
-  const logout = () => {
-    signOut(auth);
+  const logout = async () => {
+    await supabase.auth.signOut();
   };
 
   const updateUser = (userData: UserProfile) => {

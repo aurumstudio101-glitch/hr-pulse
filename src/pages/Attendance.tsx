@@ -4,11 +4,8 @@ import {
   UserCheck, Timer, Search, Filter, Download
 } from 'lucide-react';
 import { AttendanceRecord, UserProfile } from '../types';
-import * as firestoreService from '../services/firestoreService';
-import { mockService } from '../mockService'; // Keeping for reference/fallback
+import * as supabaseService from '../services/supabaseService';
 import { useAuth } from '../hooks/useAuth';
-import { db } from '../firebase';
-import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
 import { cn, formatDate } from '../lib/utils';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
@@ -19,38 +16,30 @@ export default function Attendance() {
   const [employees, setEmployees] = useState<UserProfile[]>([]);
   const [search, setSearch] = useState('');
   const [filterBranch, setFilterBranch] = useState('All');
-
-  useEffect(() => {
-    if (!user) return;
-
-    const isManagement = user.role === 'hr' || user.role === 'owner' || user.role === 'super';
-
-    // 1. Real-time Employees (needed for names)
-    const empsUnsub = onSnapshot(collection(db, 'users'), (snap) => {
-      setEmployees(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
-    });
-
-    // 2. Real-time Attendance
-    const attendanceQuery = isManagement 
-      ? query(collection(db, 'attendance'), orderBy('date', 'desc'))
-      : query(collection(db, 'attendance'), where('userId', '==', user.uid), orderBy('date', 'desc'));
-
-    const attendanceUnsub = onSnapshot(attendanceQuery, (snap) => {
-      setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() } as AttendanceRecord)));
-    }, (err) => {
-      console.error('Attendance listener error:', err);
-      toast.error('Failed to sync attendance');
-    });
-
-    return () => {
-      empsUnsub();
-      attendanceUnsub();
-    };
-  }, [user?.uid, user?.role]);
+  const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
-    // Handled by onSnapshot
+    if (!user) return;
+    setLoading(true);
+    try {
+      const isManagement = user.role === 'hr' || user.role === 'owner' || user.role === 'super';
+      const [empData, attData] = await Promise.all([
+        supabaseService.getEmployees(),
+        supabaseService.getAttendance(isManagement ? undefined : user.uid)
+      ]);
+      setEmployees(empData);
+      setRecords(attData);
+    } catch (err) {
+      console.error('Error loading attendance data:', err);
+      toast.error('Failed to sync attendance');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadData();
+  }, [user?.uid, user?.role]);
 
   const branches = ['All', ...new Set(employees.map(e => e.branch))];
 
@@ -75,8 +64,9 @@ export default function Attendance() {
             <div className="flex gap-2">
               <button 
                 onClick={async () => {
-                  if (await firestoreService.checkIn(user.uid)) {
+                  if (await supabaseService.checkIn(user.uid)) {
                     toast.success('Checked in!');
+                    loadData();
                   } else {
                     toast.error('Already checked in today');
                   }
@@ -88,8 +78,9 @@ export default function Attendance() {
               </button>
               <button 
                 onClick={async () => {
-                  if (await firestoreService.checkOut(user.uid)) {
+                  if (await supabaseService.checkOut(user.uid)) {
                     toast.success('Checked out!');
+                    loadData();
                   } else {
                     toast.error('No active shift found');
                   }

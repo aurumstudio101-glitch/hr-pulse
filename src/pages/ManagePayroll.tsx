@@ -4,7 +4,7 @@ import {
   Filter, Edit2, Check, X, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import { PayrollRecord, UserProfile } from '../types';
-import * as firestoreService from '../services/firestoreService';
+import * as supabaseService from '../services/supabaseService';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
@@ -22,9 +22,16 @@ export default function ManagePayroll() {
   }, []);
 
   const loadData = async () => {
-    const data = await firestoreService.getPayroll();
-    setPayrolls(data);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const data = await supabaseService.getPayroll();
+      setPayrolls(data || []);
+    } catch (err) {
+      console.error('Error loading payroll data:', err);
+      toast.error('Failed to load payrolls');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredPayrolls = payrolls.filter(p => {
@@ -35,31 +42,41 @@ export default function ManagePayroll() {
   });
 
   const handleSave = async (id: string) => {
-    const original = payrolls.find(p => p.id === id);
-    if (!original) return;
+    try {
+      const original = payrolls.find(p => p.id === id);
+      if (!original) return;
 
-    const intensive = Number(editData.intensive ?? original.intensive);
-    const advances = Number(editData.advances ?? original.advances);
-    const travelling = Number(editData.travelling ?? original.travelling);
-    
-    // Recalculate Net: Salary A + Salary B + Intensive + Travelling - EPF - Advances - Cover
-    const netSalary = (original.salaryA || 0) + (original.salaryB || 0) + intensive + travelling - (original.epf || 0) - advances - (original.cover || 0);
+      const intensive = Number(editData.intensive ?? original.intensive);
+      const advances = Number(editData.advances ?? original.advances);
+      const travelling = Number(editData.travelling ?? original.travelling);
+      
+      // Recalculate Net: Salary A + Salary B + Intensive + Travelling - EPF - Advances - Cover
+      const netSalary = (original.salaryA || 0) + (original.salaryB || 0) + intensive + travelling - (original.epf || 0) - advances - (original.cover || 0);
 
-    await firestoreService.updatePayroll(id, {
-      ...editData,
-      netSalary: isNaN(netSalary) ? 0 : netSalary
-    });
-    
-    toast.success('Payroll updated');
-    setEditingId(null);
-    setEditData({});
-    loadData();
+      await supabaseService.updatePayroll(id, {
+        ...editData,
+        netSalary: isNaN(netSalary) ? 0 : netSalary
+      });
+      
+      toast.success('Payroll updated');
+      setEditingId(null);
+      setEditData({});
+      loadData();
+    } catch (err) {
+      console.error('Error saving payroll:', err);
+      toast.error('Failed to update payroll');
+    }
   };
 
   const handleMarkAsPaid = async (id: string) => {
-    await firestoreService.updatePayroll(id, { status: 'Paid' });
-    toast.success('Marked as paid');
-    loadData();
+    try {
+      await supabaseService.updatePayroll(id, { status: 'Paid' });
+      toast.success('Marked as paid');
+      loadData();
+    } catch (err) {
+      console.error('Error processing payment:', err);
+      toast.error('Payment processing failed');
+    }
   };
 
   return (

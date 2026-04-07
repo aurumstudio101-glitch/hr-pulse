@@ -5,9 +5,8 @@ import {
 } from 'lucide-react';
 import { cn, formatDate } from '../lib/utils';
 import { useAuth } from '../hooks/useAuth';
-import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
 import { LeaveRequest, Holiday } from '../types';
+import * as supabaseService from '../services/supabaseService';
 
 export default function Calendar() {
   const { user, uid } = useAuth();
@@ -18,24 +17,22 @@ export default function Calendar() {
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  const currentYear = new Date().getFullYear();
 
-  // 1. Real-time Personal Leaves Sync
-  useEffect(() => {
+  const loadData = async () => {
     if (!uid) return;
-
-    const q = query(
-      collection(db, 'leaveRequests'),
-      where('userId', '==', uid),
-      orderBy('startDate', 'desc')
-    );
-
-    const unsub = onSnapshot(q, (snap) => {
-      setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as LeaveRequest)));
+    setLoading(true);
+    try {
+      const data = await supabaseService.getLeaves(uid);
+      setRequests(data || []);
+    } catch (err) {
+      console.error('Error loading leaves for calendar:', err);
+    } finally {
       setLoading(false);
-    });
+    }
+  };
 
-    return () => unsub();
+  useEffect(() => {
+    loadData();
   }, [uid]);
 
   // 2. Internet Holiday Sync (Sri Lanka)

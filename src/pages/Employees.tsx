@@ -5,11 +5,8 @@ import {
   Download, Upload, UserPlus, XCircle, DollarSign,
   ChevronLeft, ChevronRight, FileSpreadsheet
 } from 'lucide-react';
-import { onSnapshot, collection } from 'firebase/firestore';
-import { db } from '../firebase';
 import { UserProfile, UserRole } from '../types';
-import * as firestoreService from '../services/firestoreService';
-import { mockService } from '../mockService';
+import * as supabaseService from '../services/supabaseService';
 import { useAuth } from '../hooks/useAuth';
 import { cn, formatDate } from '../lib/utils';
 import { toast } from 'sonner';
@@ -27,6 +24,7 @@ export default function Employees() {
   const [incentiveType, setIncentiveType] = useState<'incentive' | 'deduction'>('incentive');
   const [incentiveAmount, setIncentiveAmount] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -34,17 +32,22 @@ export default function Employees() {
 
   const canAccess = user && ['super', 'owner', 'hr'].includes(user.role);
 
-  useEffect(() => {
-    // Real-time Employees Subscription
-    const unsub = onSnapshot(collection(db, 'users'), (snap) => {
-      setEmployees(snap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
-    });
-    return () => unsub();
-  }, []);
-
   const loadEmployees = async () => {
-    // Handled by onSnapshot
+    setLoading(true);
+    try {
+      const data = await supabaseService.getEmployees();
+      setEmployees(data || []);
+    } catch (err) {
+      console.error('Error loading employees:', err);
+      toast.error('Failed to sync employees');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadEmployees();
+  }, []);
 
   const branches = ['All', ...new Set(employees.map(e => e.branch))];
 
@@ -64,7 +67,7 @@ export default function Employees() {
 
   const handleDelete = async (uid: string) => {
     if (window.confirm('Are you sure you want to delete this employee?')) {
-      await firestoreService.deleteEmployee(uid);
+      await supabaseService.deleteEmployee(uid);
       toast.success('Employee deleted');
       loadEmployees();
     }
@@ -74,7 +77,7 @@ export default function Employees() {
     e.preventDefault();
     if (!selectedEmpForIncentive || !incentiveAmount) return;
 
-    const success = await firestoreService.addIncentiveDeduction(
+    const success = await supabaseService.addIncentiveDeduction(
       selectedEmpForIncentive.uid, 
       Number(incentiveAmount), 
       incentiveType
@@ -391,10 +394,10 @@ export default function Employees() {
                     };
 
                     if (editingEmp) {
-                      await firestoreService.saveEmployee(newEmp);
+                      await supabaseService.saveEmployee(newEmp);
                       toast.success('Employee updated successfully');
                     } else {
-                      await firestoreService.registerFullEmployee(newEmp, data.password);
+                      await supabaseService.registerFullEmployee(newEmp, data.password);
                       toast.success('New employee registered with login credentials');
                     }
                     setIsModalOpen(false);

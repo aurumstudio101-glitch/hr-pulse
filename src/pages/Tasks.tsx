@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { ListTodo, Plus, Trash2, CheckCircle2, Circle, Search, Filter } from 'lucide-react';
 import { Task } from '../types';
@@ -8,7 +6,7 @@ import { cn, formatDate } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { useAuth } from '../hooks/useAuth';
-import { handleFirestoreError, OperationType } from '../firebase';
+import * as supabaseService from '../services/supabaseService';
 
 export default function Tasks() {
   const { user, uid, loading: authLoading } = useAuth();
@@ -18,35 +16,22 @@ export default function Tasks() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
 
-  useEffect(() => {
+  const loadData = async () => {
     if (!uid) return;
-
-    const isDemo = !!localStorage.getItem('hr_pulse_demo_user');
-    if (isDemo) {
-      setTasks([
-        { id: 'task-1', userId: uid, title: 'Complete quarterly report', completed: false, createdAt: { toDate: () => new Date() } as any },
-        { id: 'task-2', userId: uid, title: 'Review leave requests', completed: true, createdAt: { toDate: () => new Date() } as any },
-        { id: 'task-3', userId: uid, title: 'Team meeting at 2 PM', completed: false, createdAt: { toDate: () => new Date() } as any }
-      ]);
+    setLoading(true);
+    try {
+      const data = await supabaseService.getTasks(uid);
+      setTasks(data || []);
+    } catch (err) {
+      console.error('Error loading tasks:', err);
+      toast.error('Failed to sync tasks');
+    } finally {
       setLoading(false);
-      return;
     }
+  };
 
-    const q = query(
-      collection(db, 'tasks'),
-      where('userId', '==', uid),
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Task[]);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching tasks:", error);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+  useEffect(() => {
+    loadData();
   }, [uid]);
 
   const handleAddTask = async (e: React.FormEvent) => {
@@ -54,33 +39,39 @@ export default function Tasks() {
     if (!newTaskTitle.trim() || !uid) return;
 
     try {
-      await addDoc(collection(db, 'tasks'), {
+      await supabaseService.saveTask({
         userId: uid,
         title: newTaskTitle.trim(),
         completed: false,
-        createdAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
       });
       setNewTaskTitle('');
       toast.success('Task added successfully');
+      loadData();
     } catch (e: any) {
-      handleFirestoreError(e, OperationType.WRITE, 'tasks');
+      console.error('Add task error:', e);
+      toast.error('Failed to add task');
     }
   };
 
   const toggleTask = async (id: string, completed: boolean) => {
     try {
-      await updateDoc(doc(db, 'tasks', id), { completed: !completed });
+      await supabaseService.toggleTask(id);
+      loadData();
     } catch (e: any) {
-      handleFirestoreError(e, OperationType.WRITE, `tasks/${id}`);
+      console.error('Toggle task error:', e);
+      toast.error('Failed to update task');
     }
   };
 
   const deleteTask = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'tasks', id));
+      await supabaseService.deleteTask(id);
       toast.success('Task deleted');
+      loadData();
     } catch (e: any) {
-      handleFirestoreError(e, OperationType.DELETE, `tasks/${id}`);
+      console.error('Delete task error:', e);
+      toast.error('Failed to delete task');
     }
   };
 
@@ -171,7 +162,7 @@ export default function Tasks() {
               placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-14 pr-6 py-4 bg-white border border-zinc-100 rounded-[2rem] text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all shadow-sm"
+              className="w-full pl-14 pr-6 py-4 bg-white border border-zinc-100 rounded-4xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all shadow-sm"
             />
           </div>
 
@@ -180,7 +171,7 @@ export default function Tasks() {
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-center py-20 bg-white rounded-[2.5rem] border border-zinc-100 shadow-sm"
+                className="text-center py-20 bg-white rounded-4xl border border-zinc-100 shadow-sm"
               >
                 <div className="w-16 h-16 bg-zinc-50 rounded-2xl flex items-center justify-center text-zinc-300 mx-auto mb-4">
                   <ListTodo size={32} />
@@ -196,7 +187,7 @@ export default function Tasks() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   className={cn(
-                    "group flex items-center gap-4 p-6 bg-white rounded-[2rem] border transition-all shadow-sm",
+                    "group flex items-center gap-4 p-6 bg-white rounded-4xl border transition-all shadow-sm",
                     task.completed ? "border-zinc-100 opacity-60" : "border-zinc-100 hover:border-orange-200"
                   )}
                 >

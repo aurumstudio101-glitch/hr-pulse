@@ -5,12 +5,9 @@ import {
   AlertCircle, Check, X, Camera, Plus
 } from 'lucide-react';
 import { LeaveRequest, UserRole } from '../types';
-import * as firestoreService from '../services/firestoreService';
-import { mockService } from '../mockService';
+import * as supabaseService from '../services/supabaseService';
 import { useAuth } from '../hooks/useAuth';
 import { cn, formatDate } from '../lib/utils';
-import { onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -21,6 +18,7 @@ export default function Leaves() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   // Form state
   const [leaveType, setLeaveType] = useState<LeaveType>('Annual');
@@ -29,22 +27,24 @@ export default function Leaves() {
   const [reason, setReason] = useState('');
   const [leaveImage, setLeaveImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    let q;
-    if (user?.role === 'hr' || user?.role === 'owner' || user?.role === 'super') {
-      q = query(collection(db, 'leaveRequests'), orderBy('createdAt', 'desc'));
-    } else if (user?.uid) {
-      q = query(collection(db, 'leaveRequests'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
-    } else {
-      return;
+  const loadData = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const isManagement = user.role === 'hr' || user.role === 'owner' || user.role === 'super';
+      const data = await supabaseService.getLeaves(isManagement ? undefined : user.uid);
+      setLeaves(data || []);
+    } catch (err) {
+      console.error('Error loading leaves:', err);
+      toast.error('Failed to sync leaves');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const unsub = onSnapshot(q, (snap) => {
-      setLeaves(snap.docs.map(d => ({ id: d.id, ...d.data() } as LeaveRequest)));
-    });
-
-    return () => unsub();
-  }, [user]);
+  useEffect(() => {
+    loadData();
+  }, [user?.uid, user?.role]);
 
   const handleSubmitLeave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +78,7 @@ export default function Leaves() {
       };
       if (leaveImage) leaveData.imageUrl = leaveImage;
 
-      await firestoreService.saveLeave(leaveData);
+      await supabaseService.saveLeave(leaveData);
       
       toast.success('Leave request submitted successfully!');
       setIsModalOpen(false);
@@ -86,6 +86,7 @@ export default function Leaves() {
       setStartDate('');
       setEndDate('');
       setLeaveImage(null);
+      loadData();
     } catch (error: any) {
       console.error('Submission error:', error);
       toast.error(error.message || 'Failed to submit leave. Check your permissions.');
@@ -106,8 +107,9 @@ export default function Leaves() {
   const handleAction = async (id: string, status: 'Approved' | 'Rejected') => {
     if (!user) return;
     try {
-      await firestoreService.updateLeave(id, status, user.name);
+      await supabaseService.updateLeave(id, status, user.name);
       toast.success(`Leave request ${status.toLowerCase()}`);
+      loadData();
     } catch (err) {
       toast.error('Failed to update request');
     }

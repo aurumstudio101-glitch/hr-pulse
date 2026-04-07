@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { auth, db } from '../firebase';
-import { updatePassword } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { KeyRound, ShieldAlert } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../services/supabaseService';
 
 export default function ResetPassword() {
   const { user, uid, loading: authLoading } = useAuth();
@@ -28,22 +26,20 @@ export default function ResetPassword() {
     setLoading(true);
     try {
       if (uid) {
-        // Demo users don't actually update Firebase password
-        const isDemo = localStorage.getItem('hr_pulse_demo_user');
-        
-        if (!isDemo && auth.currentUser) {
-          await updatePassword(auth.currentUser, newPassword);
-        }
-
-        await updateDoc(doc(db, 'users', uid), {
-          mustResetPassword: false
+        // Update password in Supabase Auth
+        const { error: authError } = await supabase.auth.updateUser({
+          password: newPassword
         });
+        
+        if (authError) throw authError;
 
-        if (isDemo) {
-          const demoUser = JSON.parse(isDemo);
-          demoUser.mustResetPassword = false;
-          localStorage.setItem('hr_pulse_demo_user', JSON.stringify(demoUser));
-        }
+        // Update profile in database
+        const { error: dbError } = await supabase
+          .from('profiles')
+          .update({ must_reset_password: false })
+          .eq('id', uid);
+
+        if (dbError) throw dbError;
 
         toast.success('Password updated successfully!');
         navigate('/dashboard');
